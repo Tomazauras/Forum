@@ -1,0 +1,486 @@
+openapi: "3.0.3"
+info:
+  title: Forum API
+  description: Forum API topics, posts, comments...
+  version: "1.0"
+servers:
+  - url: https://api.forum.com/v1
+paths:
+  /topics:
+    get:
+      summary: Get a list of topics
+      tags:
+        - topic
+      operationId: getAllTopics
+      responses:
+        "200":
+          description: A list of topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/topic"
+              example:
+                - id: 1
+                  title: "Cars"
+                  description: "Discussion about reputable garages, about DIYs and various lifehacks related to car maitenance."
+                - id: 2
+                  title: "Gardening"
+                  description: "Discussion about about house plants, gardening tips and tips/tricks and mistakes to avoid."
+    post:
+      summary: "Create a topic"
+      tags:
+        - topic
+      operationId: createTopic
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createTopic"
+            example:
+              - title: "Wolksvagen Golf Mk4 boot lock stuck"
+                description: "Discussion about a common Golf Mk4 boot lock failure, ways to diagnose the fault and ways to fix it."
+      responses:
+        "201":
+          $ref: "#/components/responses/singleTopic"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+
+  /topics/{topicId}:
+    parameters:
+      - $ref: "#/components/parameters/topicId"
+    get:
+      summary: Get a topic by Id
+      tags:
+        - topic
+      operationId: getTopic
+      responses:
+        "200":
+          $ref: "#/components/responses/singleTopic"
+        "404":
+          $ref: "#/components/responses/notFound"
+
+    put:
+      summary: Update a topic by Id
+      tags:
+        - topic
+      operationId: updateTopic
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateTopic"
+            example:
+              - description: "Discussion about Golf Mk5 boot lock problems"
+      responses:
+        "200":
+          $ref: "#/components/responses/singleTopic"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+    delete:
+      summary: Delete a topic by Id
+      tags:
+        - topic
+      operationId: deleteTopic
+      responses:
+        "404":
+          $ref: "#/components/responses/notFound"
+        "204":
+          $ref: "#/components/responses/noContent"
+
+  /topics/{topicId}/posts:
+    parameters:
+      - $ref: "#/components/parameters/topicId"
+    get:
+      summary: Get posts for a topic
+      tags:
+        - post
+      operationId: getPosts
+      responses:
+        "200":
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/post"
+              example:
+                - id: 1
+                  title: "Golf Mk7 rear door wont open"
+                  description: "One of the doors on my car wont unlock, all of the other doors unlock with the key remote, what cuold be the issue?"
+                - id: 2
+                  title: "Golf Mk7 boot light not working"
+                  description: "Last friday the temperatures dropped below 0 degrees and the boot light stopped working, what could be the cause?"
+    post:
+      summary: "Add a post"
+      tags:
+        - post
+      operationId: createPost
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createPost"
+            example:
+              - title: "Driver door window wont close"
+                body: "After driving through a patched road and getting back home, before leaving the car wanted to close the windows but the buttons dont seem to respond."
+      responses:
+        "201":
+          $ref: "#/components/responses/singlePost"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+
+  /topics/{topicId}/posts/{postId}:
+    parameters:
+      - $ref: "#/components/parameters/topicId"
+      - $ref: "#/components/parameters/postId"
+    get:
+      summary: Get a post by Id for a topic
+      tags:
+        - post
+      operationId: getPost
+      responses:
+        "200":
+          $ref: "#/components/responses/singlePost"
+        "404":
+          $ref: "#/components/responses/notFound"
+
+    put:
+      summary: Update a post for a topic
+      tags:
+        - post
+      operationId: updatePost
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updatePost"
+            example:
+              - body: "The passenger door window wont come up"
+      responses:
+        "200":
+          $ref: "#/components/responses/singlePost"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+    delete:
+      summary: Delete a post for a topic
+      tags:
+        - post
+      operationId: deletePost
+      responses:
+        "404":
+          $ref: "#/components/responses/notFound"
+        "204":
+          $ref: "#/components/responses/noContent"
+
+  /topics/{topicId}/posts/{postId}/comments:
+    parameters:
+      - $ref: "#/components/parameters/topicId"
+      - $ref: "#/components/parameters/postId"
+    get:
+      summary: Get comments for a specific post
+      tags:
+        - comment
+      operationId: getComments
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/comment"
+              example:
+                - id: 1
+                  content: "Did you check the wiring loom at the door hinge?"
+                - id: 2
+                  content: "What about the motor behind the door card?"
+    post:
+      summary: "Add a comment for a specific post"
+      tags:
+        - comment
+      operationId: createComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createComment"
+            example:
+              - content: "I tried spraying wd40 but it didnt seem to help"
+      responses:
+        "201":
+          $ref: "#/components/responses/singleComment"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+
+  /topics/{topicId}/posts/{postId}/comments/{commentId}:
+    parameters:
+      - $ref: "#/components/parameters/topicId"
+      - $ref: "#/components/parameters/postId"
+      - $ref: "#/components/parameters/commentId"
+    get:
+      summary: Get a comment by id
+      tags:
+        - comment
+      operationId: getComment
+      responses:
+        "200":
+          $ref: "#/components/responses/singleComment"
+        "404":
+          $ref: "#/components/responses/notFound"
+    put:
+      summary: Update a comment by id
+      tags:
+        - comment
+      operationId: updateComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateComment"
+            example:
+              - content: "Not allowed to disccuss VW Passat cars here, go to the respectice topic"
+      responses:
+        "200":
+          $ref: "#/components/responses/singleComment"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "422":
+          $ref: "#/components/responses/unprocessableEntity"
+    delete:
+      summary: Delete a comment by id
+      tags:
+        - comment
+      operationId: deleteComment
+      responses:
+        "404":
+          $ref: "#/components/responses/notFound"
+        "204":
+          $ref: "#/components/responses/noContent"
+components:
+  schemas:
+    topic:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+    createTopic:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          minLength: 2
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9]+$" # Only allows letters, numbers
+          type: string
+        description:
+          minLength: 5
+          maxLength: 400
+          pattern: "^[a-zA-Z0-9]+$" # Only allows letters, numbers
+          type: string
+    updateTopic:
+      type: object
+      required:
+        - description
+      properties:
+        description:
+          minLength: 5
+          maxLength: 400
+          pattern: "^[a-zA-Z0-9]+$" # Only allows letters, numbers
+          type: string
+    post:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+    createPost:
+      type: object
+      required:
+        - title
+        - body
+      properties:
+        title:
+          minLength: 1
+          type: string
+        body:
+          minLength: 1
+          type: string
+    updatePost:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          minLength: 1
+          type: string
+    comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+    createComment:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          minLength: 1
+          type: string
+    updateComment:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          minLength: 1
+          type: string
+    problemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code applicable to this problem.
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+        errors:
+          type: object
+          description: A map of detailed errors for every property ([property => error])
+  responses:
+    singleTopic:
+      description: A topic
+      content:
+        application/json:
+          schema:
+            type: object
+            items:
+              $ref: "#/components/schemas/topic"
+          example:
+            - id: 1
+              title: "How to maintain a Golf Mk4"
+              description: "Tips and tricks to prolong the life of your vehicle"
+    singlePost:
+      description: A post
+      content:
+        application/json:
+          schema:
+            type: object
+            items:
+              $ref: "#/components/schemas/post"
+          example:
+            - id: 1
+              title: "My mk4 golf lost its first gear"
+              description: "Recently its been getting harder to engage the first gear, especialy on cold mornings, is this a common issue?"
+    singleComment:
+      description: A comment
+      content:
+        application/json:
+          schema:
+            type: object
+            items:
+              $ref: "#/components/schemas/comment"
+          example:
+            - content: "I could never get that thing to run smoothly"
+    unprocessableEntity:
+      description: Unprocessable entity response
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            items:
+              $ref: "#/components/schemas/problemDetails"
+          example:
+            type: "https://tools.ietf.org/html/rfc4918#section-11.2"
+            title: "Unprocessable Entity"
+            status: 422
+            errors:
+              Title:
+                - "'Title' must not be empty."
+              Description:
+                - "'Description' must not be empty."
+    badRequest:
+      description: Bad request response
+    notFound:
+      description: Resource was not found
+    noContent:
+      description: Resource was deleted
+  parameters:
+    topicId:
+      name: topicId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: The unique identifier of the topic
+    postId:
+      name: postId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: The unique identifier of the post
+    commentId:
+      name: commentId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: The unique identifier of the comment
+
+tags:
+  - name: topic
+    description: Operations related to topics
+  - name: post
+    description: Operations related to posts
+  - name: comment
+    description: Operations related to comments
+
+externalDocs:
+  description: In Future
+  url: someUrl
