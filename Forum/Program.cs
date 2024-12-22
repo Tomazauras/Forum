@@ -17,14 +17,6 @@ builder.Services.AddFluentValidationAutoValidation(configuration =>
 });
 var app = builder.Build();
 
-/*
- /api/v1/topics GET List 200
- /api/v1/topics POST Create 201
- /api/v1/topics{id} GET One 200
- /api/v1/topics{id} PUT Modify 200
- /api/v1/topics{id} DELETE Remove 200 content / 204 no content
- */
-
 app.AddTopicApi();
 app.AddPostsApi();
 app.AddCommentsApi();

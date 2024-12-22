@@ -1,8 +1,12 @@
 ﻿using Forum.Data;
 using Forum.Data.Entities;
+using Forum.Helpers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using SharpGrip.FluentValidation.AutoValidation.Endpoints.Extensions;
+using System.Text.Json;
 
 namespace Forum
 {
@@ -11,14 +15,24 @@ namespace Forum
         public static void AddTopicApi(this WebApplication app)
         {
             var topicsGroup = app.MapGroup("/api").AddFluentValidationAutoValidation();
-            topicsGroup.MapGet("/topics", async (ForumDbContext DbContext) =>
+            topicsGroup.MapGet("/topics", async ([AsParameters] GetTopicsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
             {
-                // reiktu 404 jei nera lygtai?
-                return Results.Ok((await DbContext.Topics.ToListAsync()).Select(topic => topic.ToDto()));
-            });
+                var queryable = parameters.DbContext.Topics.AsQueryable().OrderBy(o => o.CreatedAt);
 
-            topicsGroup.MapGet("/topics/{topicId}", async (int topicId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var pagedList = await PagedList<Topic>.CreateAsync(queryable, searchParameters.PageNumber!.Value, searchParameters.PageSize!.Value);
+
+                var paginationMetadata = pagedList.CreatePaginationMetadata(parameters.linkGenerator, parameters.httpContext, "GetTopics");
+
+                // per header, Pagination: {}
+                // "Pagination":
+                parameters.httpContext.Response.Headers.Append("Pagination", JsonSerializer.Serialize(paginationMetadata));
+
+                //return Results.Ok((await parameters.DbContext.Topics.ToListAsync()).Select(topic => topic.ToDto()));
+                return Results.Ok(pagedList.Select(topic => topic.ToDto()));
+            }).WithName("GetTopics");
+
+            topicsGroup.MapGet("/topics/{topicId}", async ([AsParameters] GetTopicParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
@@ -26,48 +40,48 @@ namespace Forum
                 return Results.Ok(topic.ToDto());
             });
 
-            topicsGroup.MapPost("/topics", async (CreateTopicDTO dto, ForumDbContext DbContext) => {
-                var topic = new Topic { Title = dto.Title, Description = dto.Description, CreatedAt = DateTime.UtcNow, IsDeleted = false };
-                DbContext.Topics.Add(topic);
+            topicsGroup.MapPost("/topics", async ([AsParameters] CreateTopicParameters parameters) => {
+                var topic = new Topic { Title = parameters.dto.Title, Description = parameters.dto.Description, CreatedAt = DateTime.UtcNow, IsDeleted = false };
+                parameters.DbContext.Topics.Add(topic);
 
-                await DbContext.SaveChangesAsync();
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Created($"api/topics/{topic.Id}", topic.ToDto());
             });
 
-            topicsGroup.MapPut("/topics/{topicId}", async (UpdateTopicDTO dto, int topicId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            topicsGroup.MapPut("/topics/{topicId}", async ([AsParameters] UpdateTopicParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                topic.Description = dto.Description;
+                topic.Description = parameters.dto.Description;
 
-                DbContext.Topics.Update(topic);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Topics.Update(topic);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Ok(topic.ToDto());
             });
 
-            topicsGroup.MapDelete("/topics/{topicId}", async (int topicId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            topicsGroup.MapDelete("/topics/{topicId}", async ([AsParameters] DeleteTopicParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var posts = DbContext.Posts.Where(post => post.Topic == topic).ToList();
+                var posts = parameters.DbContext.Posts.Where(post => post.Topic == topic).ToList();
 
                 foreach (var post in posts)
                 {
-                    var comments = DbContext.Comments.Where(comment => comment.Post == post).ToList();
+                    var comments = parameters.DbContext.Comments.Where(comment => comment.Post == post).ToList();
 
-                    DbContext.Comments.RemoveRange(comments);
+                    parameters.DbContext.Comments.RemoveRange(comments);
                 }
 
-                DbContext.Posts.RemoveRange(posts);
-                
-                DbContext.Topics.Remove(topic);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Posts.RemoveRange(posts);
+
+                parameters.DbContext.Topics.Remove(topic);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
             });
@@ -76,14 +90,14 @@ namespace Forum
         public static void AddPostsApi(this WebApplication app)
         {
             var postsGroup = app.MapGroup("/api/topics/{topicId}").AddFluentValidationAutoValidation();
-            postsGroup.MapGet("/posts", async (int topicId, ForumDbContext DbContext) =>
+            postsGroup.MapGet("/posts", async ([AsParameters] GetPostsParameters parameters) =>
             {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var posts = await DbContext.Posts
+                var posts = await parameters.DbContext.Posts
                     .Where(post => post.Topic == topic)
                     .Select(post => post.ToDto())
                     .ToListAsync();
@@ -94,15 +108,15 @@ namespace Forum
                 return Results.Ok(posts);
             });
 
-            postsGroup.MapGet("/posts/{postId}", async (int topicId, int postId, ForumDbContext DbContext) =>
+            postsGroup.MapGet("/posts/{postId}", async ([AsParameters] GetPostParameters parameters) =>
             {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts
-                    .Where(post => post.Topic == topic && post.Id == postId)
+                var post = await parameters.DbContext.Posts
+                    .Where(post => post.Topic == topic && post.Id == parameters.postId)
                     .FirstOrDefaultAsync();
 
                 if (post == null)
@@ -111,69 +125,69 @@ namespace Forum
                 return Results.Ok(post.ToDto());
             });
 
-            postsGroup.MapPost("/posts", async (CreatePostDTO dto, int topicId, ForumDbContext DbContext) =>
+            postsGroup.MapPost("/posts", async ([AsParameters] CreatePostParameters parameters) =>
             {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
                 var post = new Post
                 {
-                    Title = dto.Title,
-                    Body = dto.Body,
+                    Title = parameters.dto.Title,
+                    Body = parameters.dto.Body,
                     CreatedAt = DateTime.UtcNow,
                     Topic = topic,
                     IsDeleted = false
                 };
 
-                DbContext.Posts.Add(post);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Posts.Add(post);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Created($"/api/topics/{topic.Id}/posts/{post.Id}", post.ToDto());
             });
 
-            postsGroup.MapPut("/posts/{postId}", async (UpdatePostDTO dto, int topicId, int postId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            postsGroup.MapPut("/posts/{postId}", async ([AsParameters] UpdatePostParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts
-                    .Where(post => post.Topic == topic && post.Id == postId)
+                var post = await parameters.DbContext.Posts
+                    .Where(post => post.Topic == topic && post.Id == parameters.postId)
                     .FirstOrDefaultAsync();
 
                 if (post == null)
                     return Results.NotFound();
 
-                post.Body = dto.Body;
+                post.Body = parameters.dto.Body;
                 //post.CreatedAt = DateTime.UtcNow; ? ar updatint
 
-                DbContext.Posts.Update(post);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Posts.Update(post);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Ok(post.ToDto());
             });
 
-            postsGroup.MapDelete("/posts/{postId}", async (int topicId, int postId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            postsGroup.MapDelete("/posts/{postId}", async ([AsParameters] DeletePostParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts
-                    .Where(p => p.Topic == topic && p.Id == postId)
+                var post = await parameters.DbContext.Posts
+                    .Where(p => p.Topic == topic && p.Id == parameters.postId)
                     .FirstOrDefaultAsync();
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comments = DbContext.Comments.Where(comment => comment.Post == post).ToList();
-                DbContext.Comments.RemoveRange(comments);
+                var comments = parameters.DbContext.Comments.Where(comment => comment.Post == post).ToList();
+                parameters.DbContext.Comments.RemoveRange(comments);
 
                 //post.IsDeleted = true;
-                DbContext.Posts.Remove(post);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Posts.Remove(post);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
             });
@@ -182,19 +196,19 @@ namespace Forum
         public static void AddCommentsApi(this WebApplication app)
         {
             var CommentsGroup = app.MapGroup("/api/topics/{topicId}/posts/{postId}").AddFluentValidationAutoValidation();
-            CommentsGroup.MapGet("/comments", async (int topicId, int postId, ForumDbContext DbContext) =>
+            CommentsGroup.MapGet("/comments", async ([AsParameters] GetCommentsParameters parameters) =>
             {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts.FindAsync(postId);
+                var post = await parameters.DbContext.Posts.FindAsync(parameters.postId);
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comments = await DbContext.Comments
+                var comments = await parameters.DbContext.Comments
                     .Where(comment => comment.Post == post)
                     .Select(comment => comment.ToDto())
                     .ToListAsync();
@@ -205,19 +219,19 @@ namespace Forum
                 return Results.Ok(comments);
             });
 
-            CommentsGroup.MapGet("/comments/{commentId}", async (int topicId, int postId, int commentId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            CommentsGroup.MapGet("/comments/{commentId}", async ([AsParameters] GetCommentParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts.FindAsync(postId);
+                var post = await parameters.DbContext.Posts.FindAsync(parameters.postId);
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comment = await DbContext.Comments
-                    .Where(comment => comment.Post == post && comment.Id == commentId)
+                var comment = await parameters.DbContext.Comments
+                    .Where(comment => comment.Post == post && comment.Id == parameters.commentId)
                     .FirstOrDefaultAsync();
 
                 if (comment == null)
@@ -226,71 +240,71 @@ namespace Forum
                 return Results.Ok(comment.ToDto());
             });
 
-            CommentsGroup.MapPost("/comments", async (CreateCommentDTO dto, int topicId, int postId, ForumDbContext DbContext) =>
+            CommentsGroup.MapPost("/comments", async ([AsParameters] CreateCommentParameters parameters) =>
             {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts.FindAsync(postId);
+                var post = await parameters.DbContext.Posts.FindAsync(parameters.postId);
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comment = new Comment { Content = dto.Content, CreatedAt = DateTime.UtcNow, IsDeleted = false, Post = post };
-                DbContext.Comments.Add(comment);
+                var comment = new Comment { Content = parameters.dto.Content, CreatedAt = DateTime.UtcNow, IsDeleted = false, Post = post };
+                parameters.DbContext.Comments.Add(comment);
 
-                await DbContext.SaveChangesAsync();
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Created($"api/topics/{topic.Id}/posts/{post.Id}/comments/{comment.Id}", comment.ToDto());
             });
 
-            CommentsGroup.MapPut("/comments/{commentId}", async (UpdateCommentDTO dto, int topicId, int postId, int commentId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            CommentsGroup.MapPut("/comments/{commentId}", async ([AsParameters] UpdateCommentParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts.FindAsync(postId);
+                var post = await parameters.DbContext.Posts.FindAsync(parameters.postId);
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comment = await DbContext.Comments
-                    .Where(comment => comment.Post == post && comment.Id == commentId)
+                var comment = await parameters.DbContext.Comments
+                    .Where(comment => comment.Post == post && comment.Id == parameters.commentId)
                     .FirstOrDefaultAsync();
 
                 if (comment == null)
                     return Results.NotFound();
 
-                comment.Content = dto.Content;
-                DbContext.Update(comment);
-                await DbContext.SaveChangesAsync();
+                comment.Content = parameters.dto.Content;
+                parameters.DbContext.Update(comment);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.Ok(comment.ToDto());
             });
 
-            CommentsGroup.MapDelete("/comments/{commentId}", async (int topicId, int postId, int commentId, ForumDbContext DbContext) => {
-                var topic = await DbContext.Topics.FindAsync(topicId);
+            CommentsGroup.MapDelete("/comments/{commentId}", async ([AsParameters] DeleteCommentParameters parameters) => {
+                var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var post = await DbContext.Posts.FindAsync(postId);
+                var post = await parameters.DbContext.Posts.FindAsync(parameters.postId);
 
                 if (post == null)
                     return Results.NotFound();
 
-                var comment = await DbContext.Comments
-                    .Where(comment => comment.Post == post && comment.Id == commentId)
+                var comment = await parameters.DbContext.Comments
+                    .Where(comment => comment.Post == post && comment.Id == parameters.commentId)
                     .FirstOrDefaultAsync();
 
                 if (comment == null)
                     return Results.NotFound();
 
-                DbContext.Comments.Remove(comment);
-                await DbContext.SaveChangesAsync();
+                parameters.DbContext.Comments.Remove(comment);
+                await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
             });

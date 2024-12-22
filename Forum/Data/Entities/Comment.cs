@@ -38,4 +38,9 @@ namespace Forum.Data.Entities
             }
         }
     };
+    public record GetCommentsParameters(int topicId, int postId, ForumDbContext DbContext);
+    public record GetCommentParameters(int topicId, int postId, int commentId, ForumDbContext DbContext);
+    public record CreateCommentParameters(CreateCommentDTO dto, int topicId, int postId, ForumDbContext DbContext);
+    public record UpdateCommentParameters(UpdateCommentDTO dto, int topicId, int postId, int commentId, ForumDbContext DbContext);
+    public record DeleteCommentParameters(int topicId, int postId, int commentId, ForumDbContext DbContext);
 }

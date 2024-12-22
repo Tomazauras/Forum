@@ -119,6 +119,11 @@ paths:
                 - id: 2
                   title: "Golf Mk7 boot light not working"
                   description: "Last friday the temperatures dropped below 0 degrees and the boot light stopped working, what could be the cause?"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "404":
+          $ref: "#/components/responses/notFound"
+
     post:
       summary: "Add a post"
       tags:
@@ -152,6 +157,8 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/singlePost"
+        "400":
+          $ref: "#/components/responses/badRequest"
         "404":
           $ref: "#/components/responses/notFound"
 
@@ -210,6 +217,10 @@ paths:
                   content: "Did you check the wiring loom at the door hinge?"
                 - id: 2
                   content: "What about the motor behind the door card?"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "404":
+          $ref: "#/components/responses/notFound"
     post:
       summary: "Add a comment for a specific post"
       tags:

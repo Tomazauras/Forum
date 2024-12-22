@@ -40,4 +40,10 @@ namespace Forum.Data.Entities
             }
         }
     };
+
+    public record GetTopicsParameters(ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
+    public record GetTopicParameters(int topicId, ForumDbContext DbContext);
+    public record CreateTopicParameters(CreateTopicDTO dto, ForumDbContext DbContext);
+    public record UpdateTopicParameters(UpdateTopicDTO dto, int topicId, ForumDbContext DbContext);
+    public record DeleteTopicParameters(int topicId, ForumDbContext DbContext);
 }
