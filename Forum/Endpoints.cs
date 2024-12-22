@@ -14,6 +14,13 @@ namespace Forum
     {
         public static void AddTopicApi(this WebApplication app)
         {
+            app.MapGet("api", (HttpContext httpContext, LinkGenerator linkGenerator) => Results.Ok(new List<LinkDto>
+            {
+                new(linkGenerator.GetUriByName(httpContext, "GetTopics"), "topics", "GET"),
+                new(linkGenerator.GetUriByName(httpContext, "CreateTopic"), "createTopic", "POST"),
+                new(linkGenerator.GetUriByName(httpContext, "GetRoot"), "self", "GET"),
+            })).WithName("GetRoot");
+
             var topicsGroup = app.MapGroup("/api").AddFluentValidationAutoValidation();
             topicsGroup.MapGet("/topics", async ([AsParameters] GetTopicsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
             {
