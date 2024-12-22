@@ -42,9 +42,9 @@ namespace Forum.Data.Entities
         }
     };
 
-    public record GetPostsParameters(int topicId, ForumDbContext DbContext);
-    public record GetPostParameters(int topicId, int postId, ForumDbContext DbContext);
-    public record CreatePostParameters(CreatePostDTO dto, int topicId, ForumDbContext DbContext);
-    public record UpdatePostParameters(UpdatePostDTO dto, int topicId, int postId, ForumDbContext DbContext);
+    public record GetPostsParameters(int topicId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
+    public record GetPostParameters(int topicId, int postId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
+    public record CreatePostParameters(CreatePostDTO dto, int topicId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
+    public record UpdatePostParameters(UpdatePostDTO dto, int topicId, int postId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
     public record DeletePostParameters(int topicId, int postId, ForumDbContext DbContext);
 }

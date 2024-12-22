@@ -21,14 +21,24 @@ namespace Forum
 
                 var pagedList = await PagedList<Topic>.CreateAsync(queryable, searchParameters.PageNumber!.Value, searchParameters.PageSize!.Value);
 
-                var paginationMetadata = pagedList.CreatePaginationMetadata(parameters.linkGenerator, parameters.httpContext, "GetTopics");
+                var resources = pagedList.Select(topic =>
+                {
+                    var links = CreateLinksForSingleTopic(topic.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                    return new ResourceDto<TopicDTO>(topic.ToDto(), links);
+                }).ToArray();
+
+                var links = CreateLinksForTopics(parameters.linkGenerator, parameters.httpContext,
+                    pagedList.GetPreviousPageLink(parameters.linkGenerator,parameters.httpContext, "GetTopics"),
+                    pagedList.GetNextPageLink(parameters.linkGenerator, parameters.httpContext, "GetTopics"))
+                .ToArray();
+
 
                 // per header, Pagination: {}
                 // "Pagination":
-                parameters.httpContext.Response.Headers.Append("Pagination", JsonSerializer.Serialize(paginationMetadata));
+                //var paginationMetadata = pagedList.CreatePaginationMetadata(parameters.linkGenerator, parameters.httpContext, "GetTopics");
+                //parameters.httpContext.Response.Headers.Append("Pagination", JsonSerializer.Serialize(paginationMetadata));
 
-                //return Results.Ok((await parameters.DbContext.Topics.ToListAsync()).Select(topic => topic.ToDto()));
-                return Results.Ok(pagedList.Select(topic => topic.ToDto()));
+                return Results.Ok(new ResourceDto<ResourceDto<TopicDTO>[]>(resources, links));
             }).WithName("GetTopics");
 
             topicsGroup.MapGet("/topics/{topicId}", async ([AsParameters] GetTopicParameters parameters) => {
@@ -37,8 +47,12 @@ namespace Forum
                 if (topic == null)
                     return Results.NotFound();
 
-                return Results.Ok(topic.ToDto());
-            });
+                var links = CreateLinksForSingleTopic(topic.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var topicDto = topic.ToDto();
+                var resource = new ResourceDto<TopicDTO>(topicDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("GetTopic");
 
             topicsGroup.MapPost("/topics", async ([AsParameters] CreateTopicParameters parameters) => {
                 var topic = new Topic { Title = parameters.dto.Title, Description = parameters.dto.Description, CreatedAt = DateTime.UtcNow, IsDeleted = false };
@@ -46,8 +60,12 @@ namespace Forum
 
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Created($"api/topics/{topic.Id}", topic.ToDto());
-            });
+                var links = CreateLinksForSingleTopic(topic.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var topicDto = topic.ToDto();
+                var resource = new ResourceDto<TopicDTO>(topicDto, links);
+
+                return Results.Created(links[0].Href, resource);
+            }).WithName("CreateTopic");
 
             topicsGroup.MapPut("/topics/{topicId}", async ([AsParameters] UpdateTopicParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -60,8 +78,12 @@ namespace Forum
                 parameters.DbContext.Topics.Update(topic);
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Ok(topic.ToDto());
-            });
+                var links = CreateLinksForSingleTopic(topic.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var topicDto = topic.ToDto();
+                var resource = new ResourceDto<TopicDTO>(topicDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("UpdateTopic");
 
             topicsGroup.MapDelete("/topics/{topicId}", async ([AsParameters] DeleteTopicParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -84,29 +106,41 @@ namespace Forum
                 await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
-            });
+            }).WithName("DeleteTopic");
         }
 
         public static void AddPostsApi(this WebApplication app)
         {
             var postsGroup = app.MapGroup("/api/topics/{topicId}").AddFluentValidationAutoValidation();
-            postsGroup.MapGet("/posts", async ([AsParameters] GetPostsParameters parameters) =>
+            postsGroup.MapGet("/posts", async ([AsParameters] GetPostsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
             {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
 
-                var posts = await parameters.DbContext.Posts
-                    .Where(post => post.Topic == topic)
-                    .Select(post => post.ToDto())
-                    .ToListAsync();
+                var queryable = parameters.DbContext.Posts
+                    .Where(post => post.Topic.Id == topic.Id)
+                    .OrderBy(post => post.CreatedAt);
 
-                if (posts.Count == 0)
-                    return Results.NotFound(); // galeciau ir nedet jei assuminsiu kad yra postu
+                var pagedList = await PagedList<Post>.CreateAsync(queryable, searchParameters.PageNumber!.Value, searchParameters.PageSize!.Value);
 
-                return Results.Ok(posts);
-            });
+                if (!pagedList.Any())
+                    return Results.NotFound();
+
+                var resources = pagedList.Select(post =>
+                {
+                    var links = CreateLinksForSinglePost(topic.Id, post.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                    return new ResourceDto<PostDTO>(post.ToDto(), links);
+                }).ToArray();
+
+                var links = CreateLinksForPosts(topic.Id, parameters.linkGenerator, parameters.httpContext,
+                    pagedList.GetPreviousPageLink(parameters.linkGenerator, parameters.httpContext, "GetPosts", new { topicId = topic.Id }),
+                    pagedList.GetNextPageLink(parameters.linkGenerator, parameters.httpContext, "GetPosts", new { topicId = topic.Id }))
+                .ToArray();
+
+                return Results.Ok(new ResourceDto<ResourceDto<PostDTO>[]>(resources, links));
+            }).WithName("GetPosts");
 
             postsGroup.MapGet("/posts/{postId}", async ([AsParameters] GetPostParameters parameters) =>
             {
@@ -122,8 +156,12 @@ namespace Forum
                 if (post == null)
                     return Results.NotFound();
 
-                return Results.Ok(post.ToDto());
-            });
+                var links = CreateLinksForSinglePost(topic.Id, post.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var postDto = post.ToDto();
+                var resource = new ResourceDto<PostDTO>(postDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("GetPost");
 
             postsGroup.MapPost("/posts", async ([AsParameters] CreatePostParameters parameters) =>
             {
@@ -144,8 +182,12 @@ namespace Forum
                 parameters.DbContext.Posts.Add(post);
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Created($"/api/topics/{topic.Id}/posts/{post.Id}", post.ToDto());
-            });
+                var links = CreateLinksForSinglePost(topic.Id, post.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var postDto = post.ToDto();
+                var resource = new ResourceDto<PostDTO>(postDto, links);
+
+                return Results.Created(links[0].Href, resource);
+            }).WithName("CreatePost");
 
             postsGroup.MapPut("/posts/{postId}", async ([AsParameters] UpdatePostParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -166,8 +208,12 @@ namespace Forum
                 parameters.DbContext.Posts.Update(post);
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Ok(post.ToDto());
-            });
+                var links = CreateLinksForSinglePost(topic.Id, post.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var postDto = post.ToDto();
+                var resource = new ResourceDto<PostDTO>(postDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("UpdatePost");
 
             postsGroup.MapDelete("/posts/{postId}", async ([AsParameters] DeletePostParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -190,13 +236,13 @@ namespace Forum
                 await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
-            });
+            }).WithName("DeletePost");
         }
 
         public static void AddCommentsApi(this WebApplication app)
         {
             var CommentsGroup = app.MapGroup("/api/topics/{topicId}/posts/{postId}").AddFluentValidationAutoValidation();
-            CommentsGroup.MapGet("/comments", async ([AsParameters] GetCommentsParameters parameters) =>
+            CommentsGroup.MapGet("/comments", async ([AsParameters] GetCommentsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
             {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
@@ -208,16 +254,29 @@ namespace Forum
                 if (post == null)
                     return Results.NotFound();
 
-                var comments = await parameters.DbContext.Comments
-                    .Where(comment => comment.Post == post)
-                    .Select(comment => comment.ToDto())
-                    .ToListAsync();
+                var queryable = parameters.DbContext.Comments
+                    .Where(comment => comment.Post.Id == post.Id)
+                    .OrderBy(comment => comment.CreatedAt);
 
-                if (comments.Count == 0)
-                    return Results.NotFound(); // galeciau ir nedet jei assuminsiu kad yra komentaru
+                var pagedList = await PagedList<Comment>.CreateAsync(queryable, searchParameters.PageNumber!.Value, searchParameters.PageSize!.Value);
 
-                return Results.Ok(comments);
-            });
+                if (!pagedList.Any())
+                    return Results.NotFound();
+
+                var resources = pagedList.Select(comment =>
+                {
+                    var links = CreateLinksForSingleComment(topic.Id, post.Id, comment.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                    return new ResourceDto<CommentDTO>(comment.ToDto(), links);
+                }).ToArray();
+
+                var links = CreateLinksForComments(topic.Id, post.Id, 
+                    parameters.linkGenerator, parameters.httpContext,
+                    pagedList.GetPreviousPageLink(parameters.linkGenerator, parameters.httpContext, "GetComments", new { topicId = topic.Id, postId = post.Id }),
+                    pagedList.GetNextPageLink(parameters.linkGenerator, parameters.httpContext, "GetComments", new { topicId = topic.Id, postId = post.Id })
+                ).ToArray();
+
+                return Results.Ok(new ResourceDto<ResourceDto<CommentDTO>[]>(resources, links));
+            }).WithName("GetComments");
 
             CommentsGroup.MapGet("/comments/{commentId}", async ([AsParameters] GetCommentParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -237,8 +296,12 @@ namespace Forum
                 if (comment == null)
                     return Results.NotFound();
 
-                return Results.Ok(comment.ToDto());
-            });
+                var links = CreateLinksForSingleComment(topic.Id, post.Id, comment.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var commentDto = comment.ToDto();
+                var resource = new ResourceDto<CommentDTO>(commentDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("GetComment");
 
             CommentsGroup.MapPost("/comments", async ([AsParameters] CreateCommentParameters parameters) =>
             {
@@ -257,8 +320,12 @@ namespace Forum
 
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Created($"api/topics/{topic.Id}/posts/{post.Id}/comments/{comment.Id}", comment.ToDto());
-            });
+                var links = CreateLinksForSingleComment(topic.Id, post.Id, comment.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var commentDto = comment.ToDto();
+                var resource = new ResourceDto<CommentDTO>(commentDto, links);
+
+                return Results.Created(links[0].Href, resource);
+            }).WithName("CreateComment");
 
             CommentsGroup.MapPut("/comments/{commentId}", async ([AsParameters] UpdateCommentParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -282,8 +349,12 @@ namespace Forum
                 parameters.DbContext.Update(comment);
                 await parameters.DbContext.SaveChangesAsync();
 
-                return Results.Ok(comment.ToDto());
-            });
+                var links = CreateLinksForSingleComment(topic.Id, post.Id, comment.Id, parameters.linkGenerator, parameters.httpContext).ToArray();
+                var commentDto = comment.ToDto();
+                var resource = new ResourceDto<CommentDTO>(commentDto, links);
+
+                return Results.Ok(resource);
+            }).WithName("UpdateComment");
 
             CommentsGroup.MapDelete("/comments/{commentId}", async ([AsParameters] DeleteCommentParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
@@ -307,7 +378,75 @@ namespace Forum
                 await parameters.DbContext.SaveChangesAsync();
 
                 return Results.NoContent();
-            });
+            }).WithName("DeleteComment");
         }
+
+
+        static IEnumerable<LinkDto> CreateLinksForSingleTopic(int topicId, LinkGenerator linkGenerator, HttpContext httpContext)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetTopic", new { topicId = topicId }), "self", "GET");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "UpdateTopic", new { topicId = topicId }), "edit", "PUT");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "DeleteTopic", new { topicId = topicId }), "remove", "DELETE");
+        }
+
+        static IEnumerable<LinkDto> CreateLinksForTopics(LinkGenerator linkGenerator, HttpContext httpContext, string? previousPageLink, string? nextPageLink)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetTopics"), "self", "GET");
+
+            if (previousPageLink != null)
+            {
+                yield return new LinkDto(previousPageLink, "previousPage", "GET");
+            }
+
+            if (nextPageLink != null)
+            {
+                yield return new LinkDto(nextPageLink, "nextPage", "GET");
+            }
+        }
+
+        static IEnumerable<LinkDto> CreateLinksForSinglePost(int topicId, int postId, LinkGenerator linkGenerator, HttpContext httpContext)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetPost", new { topicId = topicId, postId = postId }), "self", "GET");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "UpdatePost", new { topicId = topicId, postId = postId }), "edit", "PUT");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "DeletePost", new { topicId = topicId, postId = postId }), "remove", "DELETE");
+        }
+
+        static IEnumerable<LinkDto> CreateLinksForPosts(int topicId, LinkGenerator linkGenerator, HttpContext httpContext, string? previousPageLink, string? nextPageLink)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetPosts", new { topicId = topicId }), "self", "GET");
+
+            if (previousPageLink != null)
+            {
+                yield return new LinkDto(previousPageLink, "previousPage", "GET");
+            }
+
+            if (nextPageLink != null)
+            {
+                yield return new LinkDto(nextPageLink, "nextPage", "GET");
+            }
+        }
+
+        static IEnumerable<LinkDto> CreateLinksForSingleComment(int topicId, int postId, int commentId, LinkGenerator linkGenerator, HttpContext httpContext)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetComment", new { topicId = topicId, postId = postId, commentId = commentId }), "self", "GET");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "UpdateComment", new { topicId = topicId, postId = postId, commentId = commentId }), "edit", "PUT");
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "DeleteComment", new { topicId = topicId, postId = postId, commentId = commentId }), "remove", "DELETE");
+        }
+
+        static IEnumerable<LinkDto> CreateLinksForComments(int topicId, int postId, LinkGenerator linkGenerator, HttpContext httpContext, string? previousPageLink, string? nextPageLink)
+        {
+            yield return new LinkDto(linkGenerator.GetUriByName(httpContext, "GetPosts", new { topicId = topicId, postId = postId }), "self", "GET");
+
+            if (previousPageLink != null)
+            {
+                yield return new LinkDto(previousPageLink, "previousPage", "GET");
+            }
+
+            if (nextPageLink != null)
+            {
+                yield return new LinkDto(nextPageLink, "nextPage", "GET");
+            }
+        }
+
     }
 }

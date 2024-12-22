@@ -14,14 +14,58 @@ namespace Forum.Helpers
         public bool HasPrevious => CurrentPage > 1;
         public bool HasNext => CurrentPage < TotalPages;
 
-        public string? GetPreviousPageLink(LinkGenerator linkGenerator, HttpContext httpContext, string endpointName)
+        public string? GetPreviousPageLink(LinkGenerator linkGenerator, HttpContext httpContext, string endpointName, object? routeValues = null)
         {
-            return HasPrevious ? linkGenerator.GetUriByName(httpContext, endpointName, new { pageNumber = CurrentPage - 1, pageSize = PageSize}) : null;
+            if (HasPrevious)
+            {
+                if (routeValues != null)
+                {
+                    var combinedRouteValues = new RouteValueDictionary(routeValues)
+                    {
+                        ["pageNumber"] = CurrentPage - 1,
+                        ["pageSize"] = PageSize
+                    };
+
+                    return linkGenerator.GetUriByName(httpContext, endpointName, combinedRouteValues);
+                }
+
+                return linkGenerator.GetUriByName(httpContext, endpointName, new
+                {
+                    pageNumber = CurrentPage - 1,
+                    pageSize = PageSize
+                });
+            }
+            else
+            {
+                return null;
+            }
         }
 
-        public string? GetNextPageLink(LinkGenerator linkGenerator, HttpContext httpContext, string endpointName)
+        public string? GetNextPageLink(LinkGenerator linkGenerator, HttpContext httpContext, string endpointName, object? routeValues = null)
         {
-            return HasNext ? linkGenerator.GetUriByName(httpContext, endpointName, new { pageNumber = CurrentPage + 1, pageSize = PageSize}) : null;
+            if (HasNext)
+            {
+                if (routeValues != null)
+                {
+                    var combinedRouteValues = new RouteValueDictionary(routeValues)
+                    {
+                        ["pageNumber"] = CurrentPage + 1,
+                        ["pageSize"] = PageSize
+                    };
+
+                    return linkGenerator.GetUriByName(httpContext, endpointName, combinedRouteValues);
+                }
+
+                return linkGenerator.GetUriByName(httpContext, endpointName, new 
+                { 
+                    pageNumber = CurrentPage + 1,
+                    pageSize = PageSize
+                });
+            }
+            else
+            {
+                return null;
+            }
         }
 
         public PaginationMetadata CreatePaginationMetadata(LinkGenerator linkGenerator, HttpContext httpContext, string endpointName)
