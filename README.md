@@ -40,14 +40,12 @@ Duomenų bazė susideda iš trijų pagrindinių lentelių:
     - **Turinys**: Įrašo turinys
     - **Sukurtas**: Laiko žymė, kada įrašas buvo sukurtas
     - **YraIštrinta**: Boolean, nurodantis, ar įrašas buvo ištrintas
-    - **TemaId**: Užsienio raktas, jungiantis prie Temų lentelės
 
 3. **Komentarai**
     - **Id**: Unikalus identifikatorius kiekvienam komentarui (pagrindinis raktas)
     - **Turinys**: Komentaro tekstas
     - **Sukurtas**: Laiko žymė, kada komentaras buvo sukurtas
     - **YraIštrinta**: Boolean, nurodantis, ar komentaras buvo ištrintas
-    - **ĮrašoId**: Užsienio raktas, jungiantis prie Įrašų lentelės
 
 ## Pradžia / paleidimas
 Atsidarius Visual Studio atidaromas .sln projektas, vienu lygiu nusileidžiama į /forum sub katalogą, atsidarius terminalą paleidžiama komandą "dotnet ef database update" esant Entities direktorijoje terminale iškviečiama "docker-compose up" komandą, galiausiai paspaudus Ctrl+f5 arba "start without debugging" arba esant /forum sub kataloge į terminalą parašius "dotnet run" turėtų pasileisti API projekto dalis, pasiekiamia localhost:5052.
