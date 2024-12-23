@@ -48,6 +48,8 @@ paths:
           $ref: "#/components/responses/badRequest"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
 
   /topics/{topicId}:
     parameters:
@@ -84,6 +86,10 @@ paths:
           $ref: "#/components/responses/notFound"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
     delete:
       summary: Delete a topic by Id
       tags:
@@ -94,6 +100,10 @@ paths:
           $ref: "#/components/responses/notFound"
         "204":
           $ref: "#/components/responses/noContent"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
 
   /topics/{topicId}/posts:
     parameters:
@@ -144,6 +154,8 @@ paths:
           $ref: "#/components/responses/badRequest"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
 
   /topics/{topicId}/posts/{postId}:
     parameters:
@@ -183,6 +195,11 @@ paths:
           $ref: "#/components/responses/notFound"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+
     delete:
       summary: Delete a post for a topic
       tags:
@@ -193,6 +210,10 @@ paths:
           $ref: "#/components/responses/notFound"
         "204":
           $ref: "#/components/responses/noContent"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
 
   /topics/{topicId}/posts/{postId}/comments:
     parameters:
@@ -240,6 +261,8 @@ paths:
           $ref: "#/components/responses/badRequest"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
 
   /topics/{topicId}/posts/{postId}/comments/{commentId}:
     parameters:
@@ -277,6 +300,10 @@ paths:
           $ref: "#/components/responses/notFound"
         "422":
           $ref: "#/components/responses/unprocessableEntity"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
     delete:
       summary: Delete a comment by id
       tags:
@@ -287,6 +314,10 @@ paths:
           $ref: "#/components/responses/notFound"
         "204":
           $ref: "#/components/responses/noContent"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
 components:
   schemas:
     topic:
@@ -458,6 +489,10 @@ components:
       description: Resource was not found
     noContent:
       description: Resource was deleted
+    unauthorized:
+      description: missing or bad authentication
+    forbidden:
+      description: bad authentication
   parameters:
     topicId:
       name: topicId
