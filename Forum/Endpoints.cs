@@ -1,11 +1,15 @@
-﻿using Forum.Data;
+﻿using Forum.Auth.Model;
+using Forum.Data;
 using Forum.Data.Entities;
 using Forum.Helpers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using SharpGrip.FluentValidation.AutoValidation.Endpoints.Extensions;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace Forum
@@ -22,7 +26,7 @@ namespace Forum
             })).WithName("GetRoot");
 
             var topicsGroup = app.MapGroup("/api").AddFluentValidationAutoValidation();
-            topicsGroup.MapGet("/topics", async ([AsParameters] GetTopicsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
+            topicsGroup.MapGet("/topics", async ( [AsParameters] GetTopicsParameters parameters, [AsParameters] SearchParameters searchParameters) =>
             {
                 var queryable = parameters.DbContext.Topics.AsQueryable().OrderBy(o => o.CreatedAt);
 
@@ -61,8 +65,10 @@ namespace Forum
                 return Results.Ok(resource);
             }).WithName("GetTopic");
 
-            topicsGroup.MapPost("/topics", async ([AsParameters] CreateTopicParameters parameters) => {
-                var topic = new Topic { Title = parameters.dto.Title, Description = parameters.dto.Description, CreatedAt = DateTime.UtcNow, IsDeleted = false };
+            topicsGroup.MapPost("/topics", [Authorize(Roles = ForumRoles.ForumUser)] async ([AsParameters] CreateTopicParameters parameters) => {
+                var topic = new Topic { 
+                    Title = parameters.dto.Title, Description = parameters.dto.Description, CreatedAt = DateTime.UtcNow, IsDeleted = false,
+                    UserId = parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) };
                 parameters.DbContext.Topics.Add(topic);
 
                 await parameters.DbContext.SaveChangesAsync();
@@ -74,11 +80,16 @@ namespace Forum
                 return Results.Created(links[0].Href, resource);
             }).WithName("CreateTopic");
 
-            topicsGroup.MapPut("/topics/{topicId}", async ([AsParameters] UpdateTopicParameters parameters) => {
+            topicsGroup.MapPut("/topics/{topicId}",[Authorize] async ([AsParameters] UpdateTopicParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
+
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin) && parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) != topic.UserId)
+                {
+                    return Results.Forbid();
+                }
 
                 topic.Description = parameters.dto.Description;
 
@@ -92,11 +103,16 @@ namespace Forum
                 return Results.Ok(resource);
             }).WithName("UpdateTopic");
 
-            topicsGroup.MapDelete("/topics/{topicId}", async ([AsParameters] DeleteTopicParameters parameters) => {
+            topicsGroup.MapDelete("/topics/{topicId}", [Authorize] async ([AsParameters] DeleteTopicParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
                     return Results.NotFound();
+
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin))
+                {
+                    return Results.Forbid();
+                }
 
                 var posts = parameters.DbContext.Posts.Where(post => post.Topic == topic).ToList();
 
@@ -170,7 +186,7 @@ namespace Forum
                 return Results.Ok(resource);
             }).WithName("GetPost");
 
-            postsGroup.MapPost("/posts", async ([AsParameters] CreatePostParameters parameters) =>
+            postsGroup.MapPost("/posts", [Authorize(Roles = ForumRoles.ForumUser)] async ([AsParameters] CreatePostParameters parameters) =>
             {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
@@ -183,7 +199,8 @@ namespace Forum
                     Body = parameters.dto.Body,
                     CreatedAt = DateTime.UtcNow,
                     Topic = topic,
-                    IsDeleted = false
+                    IsDeleted = false,
+                    UserId = parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub)
                 };
 
                 parameters.DbContext.Posts.Add(post);
@@ -196,7 +213,7 @@ namespace Forum
                 return Results.Created(links[0].Href, resource);
             }).WithName("CreatePost");
 
-            postsGroup.MapPut("/posts/{postId}", async ([AsParameters] UpdatePostParameters parameters) => {
+            postsGroup.MapPut("/posts/{postId}", [Authorize] async ([AsParameters] UpdatePostParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
@@ -208,6 +225,11 @@ namespace Forum
 
                 if (post == null)
                     return Results.NotFound();
+
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin) && parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) != post.UserId)
+                {
+                    return Results.Forbid();
+                }
 
                 post.Body = parameters.dto.Body;
                 //post.CreatedAt = DateTime.UtcNow; ? ar updatint
@@ -222,7 +244,7 @@ namespace Forum
                 return Results.Ok(resource);
             }).WithName("UpdatePost");
 
-            postsGroup.MapDelete("/posts/{postId}", async ([AsParameters] DeletePostParameters parameters) => {
+            postsGroup.MapDelete("/posts/{postId}", [Authorize] async ([AsParameters] DeletePostParameters parameters) => {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
                 if (topic == null)
@@ -234,6 +256,11 @@ namespace Forum
 
                 if (post == null)
                     return Results.NotFound();
+
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin) && parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) != post.UserId)
+                {
+                    return Results.Forbid();
+                }
 
                 var comments = parameters.DbContext.Comments.Where(comment => comment.Post == post).ToList();
                 parameters.DbContext.Comments.RemoveRange(comments);
@@ -310,7 +337,7 @@ namespace Forum
                 return Results.Ok(resource);
             }).WithName("GetComment");
 
-            CommentsGroup.MapPost("/comments", async ([AsParameters] CreateCommentParameters parameters) =>
+            CommentsGroup.MapPost("/comments", [Authorize(Roles = ForumRoles.ForumUser)] async ([AsParameters] CreateCommentParameters parameters) =>
             {
                 var topic = await parameters.DbContext.Topics.FindAsync(parameters.topicId);
 
@@ -322,7 +349,9 @@ namespace Forum
                 if (post == null)
                     return Results.NotFound();
 
-                var comment = new Comment { Content = parameters.dto.Content, CreatedAt = DateTime.UtcNow, IsDeleted = false, Post = post };
+                var comment = new Comment { 
+                    Content = parameters.dto.Content, CreatedAt = DateTime.UtcNow, IsDeleted = false, Post = post,
+                    UserId = parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) };
                 parameters.DbContext.Comments.Add(comment);
 
                 await parameters.DbContext.SaveChangesAsync();
@@ -352,6 +381,11 @@ namespace Forum
                 if (comment == null)
                     return Results.NotFound();
 
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin) && parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) != comment.UserId)
+                {
+                    return Results.Forbid();
+                }
+
                 comment.Content = parameters.dto.Content;
                 parameters.DbContext.Update(comment);
                 await parameters.DbContext.SaveChangesAsync();
@@ -380,6 +414,11 @@ namespace Forum
 
                 if (comment == null)
                     return Results.NotFound();
+
+                if (!parameters.httpContext.User.IsInRole(ForumRoles.Admin) && parameters.httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub) != comment.UserId)
+                {
+                    return Results.Forbid();
+                }
 
                 parameters.DbContext.Comments.Remove(comment);
                 await parameters.DbContext.SaveChangesAsync();

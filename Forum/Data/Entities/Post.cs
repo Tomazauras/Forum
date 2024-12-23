@@ -1,4 +1,6 @@
 ﻿using FluentValidation;
+using Forum.Auth.Model;
+using System.ComponentModel.DataAnnotations;
 
 namespace Forum.Data.Entities
 {
@@ -12,6 +14,10 @@ namespace Forum.Data.Entities
         public bool IsDeleted { get; set; }
 
         public Topic Topic { get; set; }
+
+        [Required]
+        public required string UserId { get; set; }
+        public ForumUser User { get; set; }
 
         public PostDTO ToDto()
         {
@@ -46,5 +52,5 @@ namespace Forum.Data.Entities
     public record GetPostParameters(int topicId, int postId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
     public record CreatePostParameters(CreatePostDTO dto, int topicId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
     public record UpdatePostParameters(UpdatePostDTO dto, int topicId, int postId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
-    public record DeletePostParameters(int topicId, int postId, ForumDbContext DbContext);
+    public record DeletePostParameters(int topicId, int postId, ForumDbContext DbContext, HttpContext httpContext);
 }

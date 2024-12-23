@@ -1,5 +1,7 @@
 ﻿using FluentValidation;
+using Forum.Auth.Model;
 using Microsoft.Extensions.Primitives;
+using System.ComponentModel.DataAnnotations;
 
 namespace Forum.Data.Entities
 {
@@ -12,6 +14,10 @@ namespace Forum.Data.Entities
 
         // Only can be set/seen by admin
         public bool IsDeleted { get; set; }
+
+        [Required]
+        public required string UserId {  get; set; }
+        public ForumUser User {  get; set; }
 
         public TopicDTO ToDto()
         {
@@ -45,5 +51,5 @@ namespace Forum.Data.Entities
     public record GetTopicParameters(int topicId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
     public record CreateTopicParameters(CreateTopicDTO dto, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
     public record UpdateTopicParameters(UpdateTopicDTO dto, int topicId, ForumDbContext DbContext, LinkGenerator linkGenerator, HttpContext httpContext);
-    public record DeleteTopicParameters(int topicId, ForumDbContext DbContext);
+    public record DeleteTopicParameters(int topicId, ForumDbContext DbContext, HttpContext httpContext);
 }
